@@ -26,13 +26,14 @@ struct DefaultURLBuilder: URLBuilder {
     }
     
     func buildURL() -> URL {
-        var components = URLComponents.components(perConfiguration: configuration, path: path)
-        
-        if let after {
-            components.queryItems = [URLQueryItem(name: "after", value: after)]
-        }
-        
-        return components.urlSafe
+        return URL(string: configuration.basePath + path)!
+//        var components = URLComponents.components(perConfiguration: configuration, path: path)
+//        
+//        if let after {
+//            components.queryItems = [URLQueryItem(name: "after", value: after)]
+//        }
+//        
+//        return components.urlSafe
     }
 }
 
