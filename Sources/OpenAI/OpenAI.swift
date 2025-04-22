@@ -44,6 +44,7 @@ final public class OpenAI: OpenAIProtocol {
     }
     
     private let session: URLSessionProtocol
+    private let headers: [String: String]
     private var streamingSessions = ArrayWithThreadSafety<NSObject>()
     
     public let configuration: Configuration
@@ -59,10 +60,15 @@ final public class OpenAI: OpenAIProtocol {
     init(configuration: Configuration, session: URLSessionProtocol) {
         self.configuration = configuration
         self.session = session
+        self.headers = [:]
     }
 
     public convenience init(configuration: Configuration, session: URLSession = URLSession.shared) {
         self.init(configuration: configuration, session: session as URLSessionProtocol)
+    }
+    
+    public convenience init(configuration: Configuration, headers: [String: String] = [:]) {
+        self.init(configuration: configuration, session: URLSession.shared)
     }
 
     // UPDATES FROM 11-06-23
@@ -204,7 +210,7 @@ final public class OpenAI: OpenAIProtocol {
     }
 
     public func images(query: ImagesQuery, completion: @escaping (Result<ImagesResult, Error>) -> Void) {
-        performRequest(request: JSONRequest<ImagesResult>(body: query, url: buildURL(path: .images)), completion: completion)
+        performRequest(request: JSONRequest<ImagesResult>(body: query, url: buildURL(path: .images), customHeaders: headers), completion: completion)
     }
     
     public func imageEdits(query: ImageEditsQuery, completion: @escaping (Result<ImagesResult, Error>) -> Void) {
@@ -216,36 +222,36 @@ final public class OpenAI: OpenAIProtocol {
     }
     
     public func embeddings(query: EmbeddingsQuery, completion: @escaping (Result<EmbeddingsResult, Error>) -> Void) {
-        performRequest(request: JSONRequest<EmbeddingsResult>(body: query, url: buildURL(path: .embeddings)), completion: completion)
+        performRequest(request: JSONRequest<EmbeddingsResult>(body: query, url: buildURL(path: .embeddings), customHeaders: headers), completion: completion)
     }
     
     public func completions(query: CompletionsQuery, completion: @escaping (Result<CompletionsResult, Error>) -> Void) {
-        performRequest(request: JSONRequest<CompletionsResult>(body: query, url: buildURL(path: .completions)), completion: completion)
+        performRequest(request: JSONRequest<CompletionsResult>(body: query, url: buildURL(path: .completions), customHeaders: headers), completion: completion)
     }
     
     public func chats(query: ChatQuery, completion: @escaping (Result<ChatResult, Error>) -> Void) {
-        performRequest(request: JSONRequest<ChatResult>(body: query, url: buildURL(path: .chats)), completion: completion)
+        performRequest(request: JSONRequest<ChatResult>(body: query, url: buildURL(path: .chats), customHeaders: headers), completion: completion)
     }
     
     public func chatsStream(query: ChatQuery, onResult: @escaping (Result<ChatStreamResult, Error>) -> Void, completion: ((Error?) -> Void)?) {
-        performStreamingRequest(request: JSONRequest<ChatStreamResult>(body: query.makeStreamable(), url: buildURL(path: .chats)), onResult: onResult, completion: completion)
+        performStreamingRequest(request: JSONRequest<ChatStreamResult>(body: query.makeStreamable(), url: buildURL(path: .chats), customHeaders: headers), onResult: onResult, completion: completion)
     }
 
     public func completionsStream(query: CompletionsQuery, onResult: @escaping (Result<CompletionsResult, Error>) -> Void, completion: ((Error?) -> Void)?) {
-        performStreamingRequest(request: JSONRequest<CompletionsResult>(body: query.makeStreamable(), url: buildURL(path: .completions)), onResult: onResult, completion: completion)
+        performStreamingRequest(request: JSONRequest<CompletionsResult>(body: query.makeStreamable(), url: buildURL(path: .completions), customHeaders: headers), onResult: onResult, completion: completion)
     }
     
     public func model(query: ModelQuery, completion: @escaping (Result<ModelResult, Error>) -> Void) {
-        performRequest(request: JSONRequest<ModelResult>(url: buildURL(path: .models.withPath(query.model)), method: "GET"), completion: completion)
+        performRequest(request: JSONRequest<ModelResult>(url: buildURL(path: .models.withPath(query.model)), method: "GET", customHeaders: headers), completion: completion)
     }
     
     public func models(completion: @escaping (Result<ModelsResult, Error>) -> Void) {
-        performRequest(request: JSONRequest<ModelsResult>(url: buildURL(path: .models), method: "GET"), completion: completion)
+        performRequest(request: JSONRequest<ModelsResult>(url: buildURL(path: .models), method: "GET", customHeaders: headers), completion: completion)
     }
     
     @available(iOS 13.0, *)
     public func moderations(query: ModerationsQuery, completion: @escaping (Result<ModerationsResult, Error>) -> Void) {
-        performRequest(request: JSONRequest<ModerationsResult>(body: query, url: buildURL(path: .moderations)), completion: completion)
+        performRequest(request: JSONRequest<ModerationsResult>(body: query, url: buildURL(path: .moderations), customHeaders: headers), completion: completion)
     }
     
     public func audioTranscriptions(query: AudioTranscriptionQuery, completion: @escaping (Result<AudioTranscriptionResult, Error>) -> Void) {
@@ -257,7 +263,7 @@ final public class OpenAI: OpenAIProtocol {
     }
     
     public func audioCreateSpeech(query: AudioSpeechQuery, completion: @escaping (Result<AudioSpeechResult, Error>) -> Void) {
-        performSpeechRequest(request: JSONRequest<AudioSpeechResult>(body: query, url: buildURL(path: .audioSpeech)), completion: completion)
+        performSpeechRequest(request: JSONRequest<AudioSpeechResult>(body: query, url: buildURL(path: .audioSpeech), customHeaders: headers), completion: completion)
     }
     
 }

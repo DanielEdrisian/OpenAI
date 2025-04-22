@@ -17,7 +17,7 @@ final class JSONRequest<ResultType> {
     let method: String
     let customHeaders: [String: String]
     
-    init(body: Codable? = nil, url: URL, method: String = "POST", customHeaders: [String: String] = [:]) {
+    init(body: Codable? = nil, url: URL, method: String = "POST", customHeaders: [String: String]) {
         self.body = body
         self.url = url
         self.method = method
