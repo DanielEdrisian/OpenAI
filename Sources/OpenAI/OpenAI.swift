@@ -48,27 +48,11 @@ final public class OpenAI: OpenAIProtocol {
     private var streamingSessions = ArrayWithThreadSafety<NSObject>()
     
     public let configuration: Configuration
-
-    public convenience init(apiToken: String) {
-        self.init(configuration: Configuration(token: apiToken), session: URLSession.shared)
-    }
     
-    public convenience init(configuration: Configuration) {
-        self.init(configuration: configuration, session: URLSession.shared)
-    }
-
-    init(configuration: Configuration, session: URLSessionProtocol) {
+    public init(configuration: Configuration, headers: [String: String]) {
         self.configuration = configuration
-        self.session = session
-        self.headers = [:]
-    }
-
-    public convenience init(configuration: Configuration, session: URLSession = URLSession.shared) {
-        self.init(configuration: configuration, session: session as URLSessionProtocol)
-    }
-    
-    public convenience init(configuration: Configuration, headers: [String: String] = [:]) {
-        self.init(configuration: configuration, session: URLSession.shared)
+        self.session = URLSession.shared
+        self.headers = headers
     }
 
     // UPDATES FROM 11-06-23
@@ -214,11 +198,11 @@ final public class OpenAI: OpenAIProtocol {
     }
     
     public func imageEdits(query: ImageEditsQuery, completion: @escaping (Result<ImagesResult, Error>) -> Void) {
-        performRequest(request: MultipartFormDataRequest<ImagesResult>(body: query, url: buildURL(path: .imageEdits)), completion: completion)
+        performRequest(request: MultipartFormDataRequest<ImagesResult>(body: query, url: buildURL(path: .imageEdits), customHeaders: headers), completion: completion)
     }
     
     public func imageVariations(query: ImageVariationsQuery, completion: @escaping (Result<ImagesResult, Error>) -> Void) {
-        performRequest(request: MultipartFormDataRequest<ImagesResult>(body: query, url: buildURL(path: .imageVariations)), completion: completion)
+        performRequest(request: MultipartFormDataRequest<ImagesResult>(body: query, url: buildURL(path: .imageVariations), customHeaders: headers), completion: completion)
     }
     
     public func embeddings(query: EmbeddingsQuery, completion: @escaping (Result<EmbeddingsResult, Error>) -> Void) {
@@ -255,11 +239,11 @@ final public class OpenAI: OpenAIProtocol {
     }
     
     public func audioTranscriptions(query: AudioTranscriptionQuery, completion: @escaping (Result<AudioTranscriptionResult, Error>) -> Void) {
-        performRequest(request: MultipartFormDataRequest<AudioTranscriptionResult>(body: query, url: buildURL(path: .audioTranscriptions)), completion: completion)
+        performRequest(request: MultipartFormDataRequest<AudioTranscriptionResult>(body: query, url: buildURL(path: .audioTranscriptions), customHeaders: headers), completion: completion)
     }
     
     public func audioTranslations(query: AudioTranslationQuery, completion: @escaping (Result<AudioTranslationResult, Error>) -> Void) {
-        performRequest(request: MultipartFormDataRequest<AudioTranslationResult>(body: query, url: buildURL(path: .audioTranslations)), completion: completion)
+        performRequest(request: MultipartFormDataRequest<AudioTranslationResult>(body: query, url: buildURL(path: .audioTranslations), customHeaders: headers), completion: completion)
     }
     
     public func audioCreateSpeech(query: AudioSpeechQuery, completion: @escaping (Result<AudioSpeechResult, Error>) -> Void) {
