@@ -170,7 +170,7 @@ public struct ChatStreamResult: Codable, Equatable, Sendable {
     public let object: String
     /// The Unix timestamp (in seconds) of when the chat completion was created.
     /// Each chunk has the same timestamp.
-    public let created: TimeInterval
+    public let created: TimeInterval?
     /// The model to generate the completion.
     public let model: String
     /// A list of citations for the completion.
@@ -200,7 +200,7 @@ public struct ChatStreamResult: Codable, Equatable, Sendable {
         
         self.id = try container.decodeString(forKey: .id, parsingOptions: parsingOptions)
         self.object = try container.decodeString(forKey: .object, parsingOptions: parsingOptions)
-        self.created = try container.decode(TimeInterval.self, forKey: .created)
+        self.created = try container.decodeTimeInterval(forKey: .created, parsingOptions: parsingOptions)
         self.model = try container.decodeString(forKey: .model, parsingOptions: parsingOptions)
         self.citations = try container.decodeIfPresent([String].self, forKey: .citations)
         self.choices = try container.decode([ChatStreamResult.Choice].self, forKey: .choices)
