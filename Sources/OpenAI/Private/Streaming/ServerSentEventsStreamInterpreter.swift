@@ -69,6 +69,9 @@ final class ServerSentEventsStreamInterpreter <ResultType: Codable & Sendable>: 
             let decoder = JSONDecoder()
             decoder.userInfo[.parsingOptions] = parsingOptions
             do {
+                if String(decoding: jsonData, as: UTF8.self) == "{\"type\": \"ping\"}" {
+                    return
+                }
                 let object = try decoder.decode(ResultType.self, from: jsonData)
                 onEventDispatched?(object)
             } catch {
