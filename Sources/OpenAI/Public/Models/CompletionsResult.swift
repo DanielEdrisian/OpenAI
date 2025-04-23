@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct CompletionsResult: Codable, Equatable {
+public struct CompletionsResult: Codable, Equatable, Sendable {
 
     public struct Choice: Codable, Equatable {
         public typealias ChatCompletionMessage = ChatQuery.ChatCompletionMessageParam

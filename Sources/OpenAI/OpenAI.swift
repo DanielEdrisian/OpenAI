@@ -253,6 +253,10 @@ final public class OpenAI: @unchecked Sendable {
             completion: completion
         )
     }
+    
+    public func completionsStream(query: CompletionsQuery, onResult: @escaping @Sendable (Result<CompletionsResult, Error>) -> Void, completion: (@Sendable (Error?) -> Void)?) -> CancellableRequest {
+        performStreamingRequest(request: JSONRequest<CompletionsResult>(body: query.makeStreamable(), url: buildURL(path: .completions)), onResult: onResult, completion: completion)
+    }
 
     public func model(query: ModelQuery, completion: @escaping @Sendable (Result<ModelResult, Error>) -> Void) -> CancellableRequest {
         performRequest(request: makeModelRequest(query: query), completion: completion)
