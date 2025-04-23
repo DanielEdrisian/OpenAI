@@ -34,16 +34,13 @@ struct AssistantsRequest<ResultType>: URLRequestBuildable {
         self.method = method
     }
     
-    func build(token: String, organizationIdentifier: String?, timeoutInterval: TimeInterval) throws -> URLRequest {
-        let customHeaders = ["OpenAI-Beta": "assistants=v2"]
-        
+    func build(token: String?, organizationIdentifier: String?, timeoutInterval: TimeInterval) throws -> URLRequest {        
         switch body {
         case .json(let codable):
             let jsonRequest = JSONRequest<ResultType>(
                 body: codable,
                 url: urlBuilder.buildURL(),
-                method: method,
-                customHeaders: customHeaders
+                method: method
             )
             
             return try jsonRequest.build(
@@ -54,8 +51,7 @@ struct AssistantsRequest<ResultType>: URLRequestBuildable {
         case .multipartFormData(let encodable):
             let request = MultipartFormDataRequest<ResultType>(
                 body: encodable,
-                url: urlBuilder.buildURL(),
-                customHeaders: customHeaders
+                url: urlBuilder.buildURL()
             )
             return try request.build(
                 token: token,

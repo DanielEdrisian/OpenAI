@@ -10,6 +10,7 @@ import Combine
 import OpenAI
 import SwiftUI
 
+@MainActor
 public final class ChatStore: ObservableObject {
     public var openAIClient: OpenAIProtocol
     let idProvider: () -> String
@@ -61,12 +62,12 @@ public final class ChatStore: ObservableObject {
     func deleteConversation(_ conversationId: Conversation.ID) {
         conversations.removeAll(where: { $0.id == conversationId })
     }
-
-    @MainActor
+    
     func sendMessage(
         _ message: Message,
         conversationId: Conversation.ID,
-        model: Model
+        model: Model,
+        isStreamEnabled: Bool
     ) async {
         guard let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }) else {
             return
@@ -78,7 +79,8 @@ public final class ChatStore: ObservableObject {
 
             await completeChat(
                 conversationId: conversationId,
-                model: model
+                model: model,
+                stream: isStreamEnabled
             )
             // For assistant case we send chats to thread and then poll, polling will receive sent chat + new assistant messages.
         case .assistant:
@@ -139,11 +141,11 @@ public final class ChatStore: ObservableObject {
             }
         }
     }
-
-    @MainActor
+    
     func completeChat(
         conversationId: Conversation.ID,
-        model: Model
+        model: Model,
+        stream: Bool
     ) async {
         guard let conversation = conversations.first(where: { $0.id == conversationId }) else {
             return
@@ -169,59 +171,97 @@ public final class ChatStore: ObservableObject {
             ))
 
             let functions = [weatherFunction]
-
-            let chatsStream: AsyncThrowingStream<ChatStreamResult, Error> = openAIClient.chatsStream(
-                query: ChatQuery(
-                    messages: conversation.messages.map { message in
-                        ChatQuery.ChatCompletionMessageParam(role: message.role, content: message.content)!
-                    }, model: model,
-                    tools: functions
-                )
+            
+            let chatQuery = ChatQuery(
+                messages: conversation.messages.map { message in
+                    ChatQuery.ChatCompletionMessageParam(role: message.role, content: message.content)!
+                },
+                model: model,
+                tools: functions
             )
-
-            var functionCalls = [(name: String, argument: String?)]()
-            for try await partialChatResult in chatsStream {
-                for choice in partialChatResult.choices {
-                    let existingMessages = conversations[conversationIndex].messages
-                    // Function calls are also streamed, so we need to accumulate.
-                    choice.delta.toolCalls?.forEach { toolCallDelta in
-                        if let functionCallDelta = toolCallDelta.function {
-                            if let nameDelta = functionCallDelta.name {
-                                functionCalls.append((nameDelta, functionCallDelta.arguments))
-                            }
-                        }
-                    }
-                    var messageText = choice.delta.content ?? ""
-                    if let finishReason = choice.finishReason,
-                       finishReason == .toolCalls
-                    {
-                        functionCalls.forEach { (name: String, argument: String?) in
-                            messageText += "Function call: name=\(name) arguments=\(argument ?? "")\n"
-                        }
-                    }
-                    let message = Message(
-                        id: partialChatResult.id,
-                        role: choice.delta.role ?? .assistant,
-                        content: messageText,
-                        createdAt: Date(timeIntervalSince1970: TimeInterval(partialChatResult.created))
-                    )
-                    if let existingMessageIndex = existingMessages.firstIndex(where: { $0.id == partialChatResult.id }) {
-                        // Meld into previous message
-                        let previousMessage = existingMessages[existingMessageIndex]
-                        let combinedMessage = Message(
-                            id: message.id, // id stays the same for different deltas
-                            role: message.role,
-                            content: previousMessage.content + message.content,
-                            createdAt: message.createdAt
-                        )
-                        conversations[conversationIndex].messages[existingMessageIndex] = combinedMessage
-                    } else {
-                        conversations[conversationIndex].messages.append(message)
-                    }
-                }
+            
+            if stream {
+                try await completeConversationStreaming(
+                    conversationIndex: conversationIndex,
+                    query: chatQuery
+                )
+            } else {
+                try await completeConversation(conversationIndex: conversationIndex, query: chatQuery)
             }
         } catch {
             conversationErrors[conversationId] = error
+        }
+    }
+    
+    private func completeConversation(conversationIndex: Int, query: ChatQuery) async throws {
+        let chatResult: ChatResult = try await openAIClient.chats(query: query)
+        chatResult.choices
+            .map {
+                guard let role = ChatQuery.ChatCompletionMessageParam.Role.init(rawValue: $0.message.role) else {
+                    fatalError()
+                }
+                
+                return Message(
+                    id: chatResult.id,
+                    role: role,
+                    content: $0.message.content ?? "",
+                    createdAt: Date(timeIntervalSince1970: TimeInterval(chatResult.created))
+                )
+            }.forEach { message in
+                conversations[conversationIndex].messages.append(message)
+            }
+    }
+    
+    private func completeConversationStreaming(conversationIndex: Int, query: ChatQuery) async throws {
+        let chatsStream: AsyncThrowingStream<ChatStreamResult, Error> = openAIClient.chatsStream(query: query)
+        
+        var functionCalls = [Int: (name: String?, arguments: String)]()
+        
+        for try await partialChatResult in chatsStream {
+            for choice in partialChatResult.choices {
+                let existingMessages = conversations[conversationIndex].messages
+                // Function calls are also streamed, so we need to accumulate.
+                choice.delta.toolCalls?.forEach { toolCallDelta in
+                    let index = toolCallDelta.index
+                    
+                    if let functionCallDelta = toolCallDelta.function {
+                        if functionCalls[index] == nil {
+                            functionCalls[index] = (functionCallDelta.name, "")
+                        }
+                        if let argumentDelta = functionCallDelta.arguments {
+                            functionCalls[index]?.arguments += argumentDelta
+                        }
+                    }
+                }
+                
+                var messageText = choice.delta.content ?? ""
+                if let finishReason = choice.finishReason, finishReason == .toolCalls {
+                    for (_, functionCall) in functionCalls {
+                        messageText += "Function call: name=\(functionCall.name ?? "") arguments=\(functionCall.arguments)\n"
+                    }
+                }
+                
+                let message = Message(
+                    id: partialChatResult.id,
+                    role: choice.delta.role ?? .assistant,
+                    content: messageText,
+                    createdAt: Date(timeIntervalSince1970: TimeInterval(partialChatResult.created))
+                )
+                
+                if let existingMessageIndex = existingMessages.firstIndex(where: { $0.id == partialChatResult.id }) {
+                    // Meld into previous message
+                    let previousMessage = existingMessages[existingMessageIndex]
+                    let combinedMessage = Message(
+                        id: message.id, // id stays the same for different deltas
+                        role: message.role,
+                        content: previousMessage.content + message.content,
+                        createdAt: message.createdAt
+                    )
+                    conversations[conversationIndex].messages[existingMessageIndex] = combinedMessage
+                } else {
+                    conversations[conversationIndex].messages.append(message)
+                }
+            }
         }
     }
 
@@ -327,7 +367,7 @@ public final class ChatStore: ObservableObject {
         var toolOutputs = [RunToolOutputsQuery.ToolOutput]()
 
         for toolCall in toolCalls {
-            let msgContent = "function\nname: \(toolCall.function.name ?? "")\nargs: \(toolCall.function.arguments ?? "{}")"
+            let msgContent = "function\nname: \(toolCall.function.name)\nargs: \(toolCall.function.arguments)"
 
             let runStepMessage = Message(
                 id: toolCall.id,
@@ -348,12 +388,7 @@ public final class ChatStore: ObservableObject {
     
     // The run retrieval steps are fetched in a separate task. This request is fetched, checking for new run steps, each time the run is fetched.
     private func handleRunRetrieveSteps() async throws {
-        var before: String?
-//            if let lastRunStepMessage = self.conversations[conversationIndex].messages.last(where: { $0.isRunStep == true }) {
-//                before = lastRunStepMessage.id
-//            }
-
-        let stepsResult = try await openAIClient.runRetrieveSteps(threadId: currentThreadId ?? "", runId: currentRunId ?? "", before: before)
+        let stepsResult = try await openAIClient.runRetrieveSteps(threadId: currentThreadId ?? "", runId: currentRunId ?? "", before: nil)
 
         for item in stepsResult.data.reversed() {
             let toolCalls = item.stepDetails.toolCalls?.reversed() ?? []

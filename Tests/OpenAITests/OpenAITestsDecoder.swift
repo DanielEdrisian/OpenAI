@@ -8,9 +8,7 @@
 import XCTest
 @testable import OpenAI
 
-@available(iOS 13.0, *)
-@available(watchOS 6.0, *)
-@available(tvOS 13.0, *)
+@available(iOS 13.0, tvOS 13.0, macOS 10.15, watchOS 6.0, *)
 class OpenAITestsDecoder: XCTestCase {
     
     override func setUp() {
@@ -61,31 +59,21 @@ class OpenAITestsDecoder: XCTestCase {
     }
     
     func testChatCompletion() async throws {
-        let data = """
-        {
-          "id": "chatcmpl-123",
-          "object": "chat.completion",
-          "created": 1677652288,
-          "model": "gpt-4",
-          "choices": [{
-            "index": 0,
-            "message": {
-              "role": "assistant",
-              "content": "Hello, world!",
-            },
-            "finish_reason": "stop"
-          }],
-          "usage": {
-            "prompt_tokens": 9,
-            "completion_tokens": 12,
-            "total_tokens": 21
-          }
-        }
-        """
+        let data = ChatResult.mockJsonString
         
-        let expectedValue = ChatResult(id: "chatcmpl-123", object: "chat.completion", created: 1677652288, model: .gpt4, choices: [
-            .init(index: 0, logprobs: nil, message: .assistant(.init(content: "Hello, world!")), finishReason: "stop")
-        ], usage: .init(completionTokens: 12, promptTokens: 9, totalTokens: 21), systemFingerprint: nil)
+        let expectedValue = ChatResult(
+            id: "chatcmpl-123", created: 1677652288, model: .gpt4, object: "chat.completion", serviceTier: nil, systemFingerprint: "fp_fc9f1d7035",
+            choices: [
+                .init(
+                    index: 0,
+                    logprobs: nil,
+                    message: .init(content: "Hello, world!", refusal: nil, role: "assistant", annotations: [], audio: nil, toolCalls: [], _reasoning: nil, _reasoningContent: nil),
+                    finishReason: "stop"
+                )
+            ],
+            usage: .init(completionTokens: 12, promptTokens: 9, totalTokens: 21),
+            citations: nil
+        )
         try decode(data, expectedValue)
     }
     
@@ -153,6 +141,55 @@ class OpenAITestsDecoder: XCTestCase {
         """
 
         // To compare serialized JSONs we first convert them both into NSDictionary which are comparable (unline native swift dictionaries)
+        let chatQueryAsDict = try jsonDataAsNSDictionary(JSONEncoder().encode(chatQuery))
+        let expectedValueAsDict = try jsonDataAsNSDictionary(expectedValue.data(using: .utf8)!)
+
+        XCTAssertEqual(chatQueryAsDict, expectedValueAsDict)
+    }
+    
+    func testChatQueryWithStreamOptions() async throws {
+        let chatQuery = ChatQuery(messages: [
+            .init(role: .user, content: "Who are you?")!
+        ], model: .gpt4, stream: true, streamOptions: .init(includeUsage: true))
+        let expectedValue = """
+        {
+            "model": "gpt-4",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Who are you?"
+                }
+            ],
+            "stream": true,
+            "stream_options": {
+                "include_usage" : true
+            }
+        }
+        """
+        
+        let chatQueryAsDict = try jsonDataAsNSDictionary(JSONEncoder().encode(chatQuery))
+        let expectedValueAsDict = try jsonDataAsNSDictionary(expectedValue.data(using: .utf8)!)
+
+        XCTAssertEqual(chatQueryAsDict, expectedValueAsDict)
+    }
+    
+    func testChatQueryWithoutStreamOptions() async throws {
+        let chatQuery = ChatQuery(messages: [
+            .init(role: .user, content: "Who are you?")!
+        ], model: .gpt4, stream: true)
+        let expectedValue = """
+        {
+            "model": "gpt-4",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Who are you?"
+                }
+            ],
+            "stream": true
+        }
+        """
+        
         let chatQueryAsDict = try jsonDataAsNSDictionary(JSONEncoder().encode(chatQuery))
         let expectedValueAsDict = try jsonDataAsNSDictionary(expectedValue.data(using: .utf8)!)
 
@@ -239,6 +276,7 @@ class OpenAITestsDecoder: XCTestCase {
               "index": 0,
               "message": {
                 "role": "assistant",
+                "annotations": [],
                 "tool_calls": [
                   {
                     "type": "function",
@@ -258,22 +296,38 @@ class OpenAITestsDecoder: XCTestCase {
             "prompt_tokens": 82,
             "completion_tokens": 18,
             "total_tokens": 100
-          }
+          },
+          "system_fingerprint": "fp_fc9f1d7035"
         }
         """
         
         let expectedValue = ChatResult(
             id: "chatcmpl-1234",
-            object: "chat.completion",
             created: 1677652288,
             model: .gpt3_5Turbo,
+            object: "chat.completion",
+            serviceTier: nil,
+            systemFingerprint: "fp_fc9f1d7035",
             choices: [
-                .init(index: 0,
-                      logprobs: nil, message:
-                        .assistant(.init(toolCalls: [.init(id: "chatcmpl-1234", function: .init(arguments: "", name: "get_current_weather"))])), finishReason: "tool_calls")
+                .init(
+                    index: 0,
+                    logprobs: nil,
+                    message: .init(
+                        content: nil,
+                        refusal: nil,
+                        role: "assistant",
+                        annotations: [],
+                        audio: nil,
+                        toolCalls: [.init(id: "chatcmpl-1234", function: .init(arguments: "", name: "get_current_weather"))],
+                        _reasoning: nil,
+                        _reasoningContent: nil
+                    ),
+                    finishReason: "tool_calls"
+                )
             ],
             usage: .init(completionTokens: 18, promptTokens: 82, totalTokens: 100),
-            systemFingerprint: nil)
+            citations: nil
+        )
         try decode(data, expectedValue)
     }
     
