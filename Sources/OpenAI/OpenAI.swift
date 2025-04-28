@@ -502,11 +502,11 @@ extension APIPath {
         let stringValue: String
     }
 
-    static let embeddings = "/v1/embeddings"
-    static let completions = "/v1/completions"
-    static let chats = "/v1/chat/completions"
-    static let models = "/v1/models"
-    static let moderations = "/v1/moderations"
+    static let embeddings = "/embeddings"
+    static let completions = "/completions"
+    static let chats = "/chat/completions"
+    static let models = "/models"
+    static let moderations = "/moderations"
     
     static let audioSpeech = "/audio/speech"
     static let audioTranscriptions = "/audio/transcriptions"
