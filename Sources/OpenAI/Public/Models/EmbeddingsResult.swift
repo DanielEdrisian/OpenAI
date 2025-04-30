@@ -31,7 +31,7 @@ public struct EmbeddingsResult: Codable, Equatable, Sendable {
     
     public let data: [Embedding]
     public let model: String
-    public let usage: Usage
+//    public let usage: Usage
     /// The object type, which is always "list".
     public let object: String
 }
